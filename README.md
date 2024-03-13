@@ -47,7 +47,7 @@ In International Conference on Learning Representations (ICLR) 2019
 Clone this repository:
 
 ```
-git clone https://github.com/google/neural-logic-machines --recursive
+git clone https://github.com/Jaraxxus-Me/NLM.git --recursive
 ```
 
 Install [Jacinle](https://github.com/vacancy/Jacinle) included as a submodule. You need to add the bin path to your global `PATH` environment variable:
