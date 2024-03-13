@@ -13,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# export PATH=third_party/Jacinle/bin:$PATH
 """The script for family tree or general graphs experiments."""
 
 import copy
@@ -39,6 +41,7 @@ from difflogic.nn.neural_logic.modules._utils import meshgrid_exclude_self
 from difflogic.nn.rl.reinforce import REINFORCELoss
 from difflogic.thutils import binary_accuracy
 from difflogic.train import TrainerBase
+from torch.utils.data.dataloader import DataLoader
 
 from jacinle.cli.argument import JacArgumentParser
 from jacinle.logging import get_logger, set_output_file
@@ -449,15 +452,15 @@ class MyTrainer(TrainerBase):
 
     # The actual number of instances in an epoch is epoch_size * batch_size.
     dataset = make_dataset(number, epoch_size * batch_size, mode == 'train')
-    dataloader = JacDataLoader(
+    dataloader = DataLoader(
         dataset,
         shuffle=True,
         batch_size=batch_size,
         num_workers=min(epoch_size, 4))
-    self.data_iterator[mode] = dataloader.__iter__()
+    self.data_iterator[mode] = iter(dataloader)
 
   def _get_data(self, index, meters, mode):
-    feed_dict = self.data_iterator[mode].next()
+    feed_dict = next(self.data_iterator[mode])
     meters.update(number=feed_dict['n'].data.numpy().mean())
     if args.use_gpu:
       feed_dict = as_cuda(feed_dict)

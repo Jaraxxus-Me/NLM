@@ -15,7 +15,7 @@
 # limitations under the License.
 """Implement family tree generator and family tree class."""
 
-import jacinle.random as random
+import numpy.random as random
 import numpy as np
 
 __all__ = ['Family', 'randomly_generate_family']
@@ -119,7 +119,7 @@ def randomly_generate_family(n, p_marriage=0.8, verbose=False):
 
   single_m = []
   single_w = []
-  couples = [None]
+  couples = []
   # The relations are: husband, wife, father, mother, son, daughter
   rel = np.zeros((n, n, 6))
   fathers = [None for i in range(n)]
@@ -165,27 +165,32 @@ def randomly_generate_family(n, p_marriage=0.8, verbose=False):
         if same_parent(man, y) or same_parent(woman, x) or same_parent(x, y):
           return False
     return True
-
+  
   while ids:
-    x = ids.pop()
-    gender = random.randint(2)
-    parents = random.choice(couples)
-    if gender == 0:
-      single_m.append(x)
-    else:
-      single_w.append(x)
-    if parents is not None:
-      add_child(parents, x, gender)
+      x = ids.pop()
+      gender = random.randint(0, 1)  # Ensure it generates 0 or 1
 
-    if random.rand() < p_marriage and len(single_m) > 0 and len(single_w) > 0:
-      mi = random.randint(len(single_m))
-      wi = random.randint(len(single_w))
-      man = single_m[mi]
-      woman = single_w[wi]
-      if check_relations(man, woman):
-        add_couple(man, woman)
-        del single_m[mi]
-        del single_w[wi]
+      # Ensure that there is at least one couple before assigning parents
+      parents = random.choice(couples) if couples else None
+
+      if gender == 0:
+          single_m.append(x)
+      else:
+          single_w.append(x)
+
+      if parents:
+          add_child(parents, x, gender)
+
+      # Correct random selection and use of random.random() for probability check
+      if random.random() < p_marriage and single_m and single_w:
+          mi = random.randint(0, len(single_m) - 1)
+          wi = random.randint(0, len(single_w) - 1)
+          man = single_m[mi]
+          woman = single_w[wi]
+          if check_relations(man, woman):
+              add_couple(man, woman)
+              del single_m[mi]
+              del single_w[wi]
 
   return Family(n, rel)
 
