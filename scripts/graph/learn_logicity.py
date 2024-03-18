@@ -35,7 +35,7 @@ import jactorch.nn as jacnn
 from difflogic.cli import format_args
 from difflogic.dataset.graph import LogiCityDataset
 from difflogic.nn.neural_logic import LogicMachine, LogicInference, LogitsInference
-from difflogic.thutils import binary_accuracy
+from difflogic.thutils import multi_class_accuracy
 from difflogic.train import TrainerBase
 from torch.utils.data.dataloader import DataLoader
 
@@ -133,7 +133,7 @@ train_group.add_argument(
 train_group.add_argument(
     '--batch-size',
     type=int,
-    default=4,
+    default=16,
     metavar='N',
     help='batch size for training')
 train_group.add_argument(
@@ -152,8 +152,8 @@ train_group.add_argument(
 # Note that nr_examples_per_epoch = epoch_size * batch_size
 TrainerBase.make_trainer_parser(
     parser, {
-        'epochs': 50,
-        'epoch_size': 250,
+        'epochs': 10,
+        'epoch_size': 1000,
         'test_epoch_size': 250,
         'test_number_begin': 10,
         'test_number_step': 10,
@@ -231,13 +231,14 @@ class Model(nn.Module):
       output_dim = self.features.output_dims[self.feature_axis]
     # target
     target_dim = 2 if args.task == 'easy' else 4
-    self.pred = LogicInference(output_dim, target_dim, [])
+    # Do not sigmoid as we will use CrossEntropyLoss
+    self.pred = LogitsInference(output_dim, target_dim, [])
     # losses
     self.loss = nn.CrossEntropyLoss()
 
 
   def forward(self, feed_dict):
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
 
     # relations
     states = feed_dict['states']
@@ -245,26 +246,29 @@ class Model(nn.Module):
     batch_size, nr = relations.size()[:2]
 
     inp = [None for _ in range(args.nlm_breadth + 1)]
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
     inp[1] = states
     inp[2] = relations
 
     depth = None
     feature = self.features(inp, depth=depth)[self.feature_axis]
 
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
     pred = self.pred(feature)
 
     if self.training:
       monitors = dict()
       target = feed_dict['targets']
+      label = feed_dict['labels']
       # only the first entity (ego agent) is used for supervision
       target = target[:, 0]
       pred = pred[:, 0]
-
       loss = self.loss(pred, target)
+      pred = F.softmax(pred, dim=-1)
+      monitors.update(multi_class_accuracy(label, pred, return_float=False))
       return loss, monitors, dict(pred=pred)
     else:
+      pred = F.softmax(pred, dim=-1)
       return dict(pred=pred)
 
 
@@ -304,22 +308,22 @@ class MyTrainer(TrainerBase):
 
   def _get_data(self, index, meters, mode):
     feed_dict = next(self.data_iterator[mode])
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
     meters.update(number=feed_dict['n'].data.numpy().mean())
-    print(feed_dict)
+    # print(feed_dict)
     if args.use_gpu:
       feed_dict = as_cuda(feed_dict)
     return feed_dict
 
   def _get_result(self, index, meters, mode):
     feed_dict = self._get_data(index, meters, mode)
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
     output_dict = self.model(feed_dict)
 
     target = feed_dict['target']
     if args.task_is_adjacent:
       target = target[:, :, :args.adjacent_pred_colors]
-    result = binary_accuracy(target, output_dict['pred'])
+    result = multi_class_accuracy(target, output_dict['pred'])
     succ = result['accuracy'] == 1.0
 
     meters.update(succ=succ)

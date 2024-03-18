@@ -23,7 +23,7 @@ from jactorch.utils.meta import as_tensor
 
 __all__ = [
     'binary_accuracy', 'rms', 'monitor_saturation', 'monitor_paramrms',
-    'monitor_gradrms'
+    'monitor_gradrms', 'multi_class_accuracy'
 ]
 
 
@@ -64,6 +64,32 @@ def binary_accuracy(label, raw_pred, eps=1e-20, return_float=True):
       'satuation/min': sat_min,
   }
 
+def multi_class_accuracy(label, raw_pred, eps=1e-20, return_float=True):
+    """Get accuracy for multi-class classification problem."""
+    pred = as_tensor(raw_pred)
+    # Assuming raw_pred are logits; convert to probabilities and find the predicted class
+    pred_class = torch.argmax(pred, dim=-1)
+    label = as_tensor(label).long()  # Ensure labels are in long format for comparison
+
+    # The overall accuracy = the correct predictions / total
+    correct_predictions = pred_class.eq(label).float()
+    acc = correct_predictions.mean()
+
+    # Calculate balanced accuracy
+    unique_labels = label.unique()
+    acc_per_class = torch.tensor([correct_predictions[label == c].mean() for c in unique_labels])
+    balanced_acc = acc_per_class.mean()
+
+    # Since saturation is more meaningful in binary classification, it's not included here
+
+    if return_float:
+        acc = acc.item()
+        balanced_acc = balanced_acc.item()
+
+    return {
+        'accuracy': acc,
+        'balanced_accuracy': balanced_acc,
+    }
 
 def rms(p):
   """Root mean square function."""

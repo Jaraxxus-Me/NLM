@@ -21,6 +21,7 @@ from torch.utils.data.dataset import Dataset
 from torchvision import datasets
 import torch
 import jacinle.random as random
+from jactorch.utils.meta import as_tensor
 import os
 import pickle as pkl
 from .family import randomly_generate_family
@@ -260,7 +261,7 @@ class LogiCityDataset(Dataset):
     target = torch.zeros((self.num_ents, len(self.tgt_action)))
     if a in self.tgt_action:
       target[0, self.tgt_action[a]] = 1
-    return dict(n=self.num_ents, states=unp_arr_ls, relations=bip_arr_ls, target=target)
+    return dict(n=self.num_ents, states=unp_arr_ls, relations=bip_arr_ls, targets=target, labels=as_tensor(self.tgt_action[a]).long())
 
   def __len__(self):
     return len(self.states)
