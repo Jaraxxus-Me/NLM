@@ -152,8 +152,8 @@ train_group.add_argument(
 # Note that nr_examples_per_epoch = epoch_size * batch_size
 TrainerBase.make_trainer_parser(
     parser, {
-        'epochs': 10,
-        'epoch_size': 1000,
+        'epochs': 5,
+        'epoch_size': 2000,
         'test_epoch_size': 250,
         'test_number_begin': 10,
         'test_number_step': 10,
@@ -162,7 +162,7 @@ TrainerBase.make_trainer_parser(
 
 io_group = parser.add_argument_group('Input/Output')
 io_group.add_argument(
-    '--dump-dir', type=str, default=None, metavar='DIR', help='dump dir')
+    '--dump-dir', type=str, default='dump/logicity_med', metavar='DIR', help='dump dir')
 io_group.add_argument(
     '--load-checkpoint',
     type=str,
@@ -176,7 +176,7 @@ schedule_group.add_argument(
 schedule_group.add_argument(
     '--save-interval',
     type=int,
-    default=10,
+    default=1,
     metavar='N',
     help='the interval(number of epochs) to save checkpoint')
 schedule_group.add_argument(
@@ -268,6 +268,7 @@ class Model(nn.Module):
       monitors.update(multi_class_accuracy(label, pred, return_float=False))
       return loss, monitors, dict(pred=pred)
     else:
+      pred = pred[:, 0]
       pred = F.softmax(pred, dim=-1)
       return dict(pred=pred)
 
@@ -320,14 +321,12 @@ class MyTrainer(TrainerBase):
     # import ipdb; ipdb.set_trace()
     output_dict = self.model(feed_dict)
 
-    target = feed_dict['target']
-    if args.task_is_adjacent:
-      target = target[:, :, :args.adjacent_pred_colors]
-    result = multi_class_accuracy(target, output_dict['pred'])
+    label = feed_dict['labels']
+    result = multi_class_accuracy(label, output_dict['pred'])
     succ = result['accuracy'] == 1.0
 
     meters.update(succ=succ)
-    meters.update(result, n=target.size(0))
+    meters.update(result, n=label.size(0))
     message = '> {} iter={iter}, accuracy={accuracy:.4f}, \
 balance_acc={balanced_accuracy:.4f}'.format(
         mode, iter=index, **meters.val)
