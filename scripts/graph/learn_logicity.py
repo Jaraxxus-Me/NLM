@@ -54,8 +54,7 @@ from jactorch.train.env import TrainerEnv
 from jactorch.utils.meta import as_cuda, as_numpy, as_tensor
 
 TASKS = [
-    'outdegree', 'connectivity', 'adjacent', 'adjacent-mnist', 'has-father',
-    'has-sister', 'grandparents', 'uncle', 'maternal-great-uncle'
+    'easy', 'medium'
 ]
 
 parser = JacArgumentParser()

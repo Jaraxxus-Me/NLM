@@ -16,11 +16,43 @@
 """The dimension related operations."""
 
 import itertools
-
+import collections
 import torch
 import torch.nn as nn
+from typing import Union, Tuple, List
 
-from jactorch.functional import broadcast
+def concat_shape(*shapes: Union[torch.Size, Tuple[int, ...], List[int], int]) -> Tuple[int, ...]:
+    """Concatenate shapes into a tuple. The values can be either torch.Size, tuple, list, or int."""
+    output = []
+    for s in shapes:
+        if isinstance(s, collections.abc.Sequence):
+            output.extend(s)
+        else:
+            output.append(int(s))
+    return tuple(output)
+
+def broadcast(tensor: torch.Tensor, dim: int, size: int) -> torch.Tensor:
+    """Broadcast a specific dim for `size` times. Originally the dim size must be 1.
+
+    Example:
+
+        >>> broadcast(torch.tensor([1, 2, 3]), 0, 2)
+        tensor([[1, 2, 3],
+                [1, 2, 3]])
+
+    Args:
+        tensor: the tensor to be broadcasted.
+        dim: the dimension to be broadcasted.
+        size: the size of the target dimension.
+
+    Returns:
+        the broadcasted tensor.
+    """
+    if dim < 0:
+        dim += tensor.dim()
+    assert tensor.size(dim) == 1
+    shape = tensor.size()
+    return tensor.expand(concat_shape(shape[:dim], size, shape[dim + 1:]))
 
 from ._utils import exclude_mask, mask_value
 

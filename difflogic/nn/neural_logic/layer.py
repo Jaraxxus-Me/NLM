@@ -123,6 +123,7 @@ class LogicLayer(nn.Module):
     assert len(inputs) == self.max_order + 1
     outputs = []
     for i in range(self.max_order + 1):
+      # import ipdb; ipdb.set_trace()
       # collect input f from group i-1, i and i+1.
       f = []
       if i > 0 and self.input_dims[i - 1] > 0:
@@ -293,6 +294,7 @@ class LogicMachine(nn.Module):
 
     layer = None
     last_layer = None
+    # import ipdb; ipdb.set_trace()
     for i in range(depth):
       if i > 0 and self.io_residual:
         for j, inp in enumerate(inputs):
@@ -399,5 +401,5 @@ class LogicMachine(nn.Module):
     setattr(args, prefix + 'output_dims', output_dims)
     init_params = {k: getattr(args, prefix + k) for k in cls.__hyperparams__}
     init_params.update(kwargs)
-
+    # import ipdb; ipdb.set_trace()
     return cls(**init_params)
