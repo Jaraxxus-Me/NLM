@@ -33,28 +33,21 @@ import jacinle.io as io
 import jactorch.nn as jacnn
 
 from difflogic.cli import format_args
-from difflogic.dataset.graph import GraphOutDegreeDataset, \
-    GraphConnectivityDataset, GraphAdjacentDataset, FamilyTreeDataset
-from difflogic.nn.baselines import MemoryNet
+from difflogic.dataset.graph import LogiCityDataset
 from difflogic.nn.neural_logic import LogicMachine, LogicInference, LogitsInference
-from difflogic.nn.neural_logic.modules._utils import meshgrid_exclude_self
-from difflogic.nn.rl.reinforce import REINFORCELoss
 from difflogic.thutils import binary_accuracy
 from difflogic.train import TrainerBase
 from torch.utils.data.dataloader import DataLoader
 
 from jacinle.cli.argument import JacArgumentParser
 from jacinle.logging import get_logger, set_output_file
-from jacinle.utils.container import GView
 from jacinle.utils.meter import GroupMeters
-from jactorch.data.dataloader import JacDataLoader
 from jactorch.optim.accum_grad import AccumGrad
 from jactorch.optim.quickaccess import get_optimizer
-from jactorch.train.env import TrainerEnv
-from jactorch.utils.meta import as_cuda, as_numpy, as_tensor
+from jactorch.utils.meta import as_cuda
 
 TASKS = [
-    'easy', 'medium'
+    'easy', 'med'
 ]
 
 parser = JacArgumentParser()
@@ -62,8 +55,8 @@ parser = JacArgumentParser()
 parser.add_argument(
     '--model',
     default='nlm',
-    choices=['nlm', 'memnet'],
-    help='model choices, nlm: Neural Logic Machine, memnet: Memory Networks')
+    choices=['nlm'],
+    help='model choices, nlm: Neural Logic Machine')
 
 # NLM parameters, works when model is 'nlm'
 nlm_group = parser.add_argument_group('Neural Logic Machines')
@@ -83,10 +76,6 @@ nlm_group.add_argument(
     help='number of output attributes in each group of each layer of the LogicMachine'
 )
 
-# MemNN parameters, works when model is 'memnet'
-memnet_group = parser.add_argument_group('Memory Networks')
-MemoryNet.make_memnet_parser(memnet_group, {}, prefix='memnet')
-
 # task related
 task_group = parser.add_argument_group('Task')
 task_group.add_argument(
@@ -94,41 +83,14 @@ task_group.add_argument(
 task_group.add_argument(
     '--train-number',
     type=int,
-    default=10,
+    default=5,
     metavar='N',
     help='size of training instances')
-task_group.add_argument(
-    '--adjacent-pred-colors', type=int, default=4, metavar='N')
-task_group.add_argument('--outdegree-n', type=int, default=2, metavar='N')
-task_group.add_argument(
-    '--connectivity-dist-limit', type=int, default=4, metavar='N')
 
 data_gen_group = parser.add_argument_group('Data Generation')
 data_gen_group.add_argument(
-    '--gen-graph-method',
-    default='edge',
-    choices=['dnc', 'edge'],
-    help='method use to generate random graph')
-data_gen_group.add_argument(
-    '--gen-graph-pmin',
-    type=float,
-    default=0.0,
-    metavar='F',
-    help='control parameter p reflecting the graph sparsity')
-data_gen_group.add_argument(
-    '--gen-graph-pmax',
-    type=float,
-    default=0.3,
-    metavar='F',
-    help='control parameter p reflecting the graph sparsity')
-data_gen_group.add_argument(
-    '--gen-graph-colors',
-    type=int,
-    default=4,
-    metavar='N',
-    help='number of colors in adjacent task')
-data_gen_group.add_argument(
-    '--gen-directed', action='store_true', help='directed graph')
+    '--data-dir',
+    default='data/LogiCity')
 
 train_group = parser.add_argument_group('Train')
 train_group.add_argument(
@@ -244,41 +206,12 @@ if args.seed is not None:
   import jacinle.random as random
   random.reset_global_seed(args.seed)
 
-args.task_is_outdegree = args.task in ['outdegree']
-args.task_is_connectivity = args.task in ['connectivity']
-args.task_is_adjacent = args.task in ['adjacent', 'adjacent-mnist']
-args.task_is_family_tree = args.task in [
-    'has-father', 'has-sister', 'grandparents', 'uncle', 'maternal-great-uncle'
-]
-args.task_is_mnist_input = args.task in ['adjacent-mnist']
-args.task_is_1d_output = args.task in [
-    'outdegree', 'adjacent', 'adjacent-mnist', 'has-father', 'has-sister'
-]
-
-
-class LeNet(nn.Module):
-
-  def __init__(self):
-    super().__init__()
-    self.conv1 = jacnn.Conv2dLayer(
-        1, 10, kernel_size=5, batch_norm=True, activation='relu')
-    self.conv2 = jacnn.Conv2dLayer(
-        10,
-        20,
-        kernel_size=5,
-        batch_norm=True,
-        dropout=False,
-        activation='relu')
-    self.fc1 = nn.Linear(320, 50)
-    self.fc2 = nn.Linear(50, 10)
-
-  def forward(self, x):
-    x = F.max_pool2d(self.conv1(x), 2)
-    x = F.max_pool2d(self.conv2(x), 2)
-    x = x.view(-1, 320)
-    x = F.relu(self.fc1(x))
-    x = self.fc2(x)
-    return x
+args.task_is_outdegree = False
+args.task_is_connectivity = False
+args.task_is_adjacent = False
+args.task_is_family_tree = True
+args.task_is_mnist_input = False
+args.task_is_1d_output = True
 
 
 class Model(nn.Module):
@@ -288,140 +221,51 @@ class Model(nn.Module):
     super().__init__()
 
     # inputs
-    input_dim = 4 if args.task_is_family_tree else 1
     self.feature_axis = 1 if args.task_is_1d_output else 2
 
     # features
     if args.model == 'nlm':
-      input_dims = [0 for _ in range(args.nlm_breadth + 1)]
-      if args.task_is_adjacent:
-        input_dims[1] = args.gen_graph_colors
-        if args.task_is_mnist_input:
-          self.lenet = LeNet()
-      input_dims[2] = input_dim
+      input_dims = [0, 11, 6, 0]
       self.features = LogicMachine.from_args(
           input_dims, args.nlm_attributes, args, prefix='nlm')
       output_dim = self.features.output_dims[self.feature_axis]
-
-    elif args.model == 'memnet':
-      if args.task_is_adjacent:
-        input_dim += args.gen_graph_colors
-      self.feature = MemoryNet.from_args(
-          input_dim, self.feature_axis, args, prefix='memnet')
-      output_dim = self.feature.get_output_dim()
-
     # target
-    target_dim = args.adjacent_pred_colors if args.task_is_adjacent else 1
+    target_dim = 2 if args.task == 'easy' else 4
     self.pred = LogicInference(output_dim, target_dim, [])
-
     # losses
-    if args.ohem_size > 0:
-      from jactorch.nn.losses import BinaryCrossEntropyLossWithProbs as BCELoss
-      self.loss = BCELoss(average='none')
-    else:
-      self.loss = nn.BCELoss()
+    self.loss = nn.CrossEntropyLoss()
+
 
   def forward(self, feed_dict):
     import ipdb; ipdb.set_trace()
-    feed_dict = GView(feed_dict)
-
-    # properties
-    if args.task_is_adjacent:
-      states = feed_dict.states.float()
-    else:
-      states = None
 
     # relations
-    relations = feed_dict.relations.float()
+    states = feed_dict['states']
+    relations = feed_dict['relations']
     batch_size, nr = relations.size()[:2]
 
-    if args.model == 'nlm':
-      if args.task_is_adjacent and args.task_is_mnist_input:
-        states_shape = states.size()
-        states = states.view((-1,) + states_shape[2:])
-        states = self.lenet(states)
-        states = states.view(states_shape[:2] + (-1,))
-        states = F.sigmoid(states)
+    inp = [None for _ in range(args.nlm_breadth + 1)]
+    import ipdb; ipdb.set_trace()
+    inp[1] = states
+    inp[2] = relations
 
-      inp = [None for _ in range(args.nlm_breadth + 1)]
-      import ipdb; ipdb.set_trace()
-      inp[1] = states
-      inp[2] = relations
-
-      depth = None
-      if args.nlm_recursion:
-        depth = 1
-        while 2**depth + 1 < nr:
-          depth += 1
-        depth = depth * 2 + 1
-      feature = self.features(inp, depth=depth)[self.feature_axis]
-    elif args.model == 'memnet':
-      feature = self.feature(relations, states)
-      if args.task_is_adjacent and args.task_is_mnist_input:
-        raise NotImplementedError()
+    depth = None
+    feature = self.features(inp, depth=depth)[self.feature_axis]
 
     import ipdb; ipdb.set_trace()
     pred = self.pred(feature)
-    if not args.task_is_adjacent:
-      pred = pred.squeeze(-1)
-    if args.task_is_connectivity:
-      pred = meshgrid_exclude_self(pred)  # exclude self-cycle
 
     if self.training:
       monitors = dict()
-      target = feed_dict.target.float()
-
-      if args.task_is_adjacent:
-        target = target[:, :, :args.adjacent_pred_colors]
-
-      monitors.update(binary_accuracy(target, pred, return_float=False))
+      target = feed_dict['targets']
+      # only the first entity (ego agent) is used for supervision
+      target = target[:, 0]
+      pred = pred[:, 0]
 
       loss = self.loss(pred, target)
-      # ohem loss is unused.
-      if args.ohem_size > 0:
-        loss = loss.view(-1).topk(args.ohem_size)[0].mean()
       return loss, monitors, dict(pred=pred)
     else:
       return dict(pred=pred)
-
-
-def make_dataset(n, epoch_size, is_train):
-  pmin, pmax = args.gen_graph_pmin, args.gen_graph_pmax
-  if args.task_is_outdegree:
-    return GraphOutDegreeDataset(
-        args.outdegree_n,
-        epoch_size,
-        n,
-        pmin=pmin,
-        pmax=pmax,
-        directed=args.gen_directed,
-        gen_method=args.gen_graph_method)
-  elif args.task_is_connectivity:
-    nmin, nmax = n, n
-    if is_train and args.nlm_recursion:
-      nmin = 2
-    return GraphConnectivityDataset(
-        args.connectivity_dist_limit,
-        epoch_size,
-        nmin,
-        pmin,
-        nmax,
-        pmax,
-        directed=args.gen_directed,
-        gen_method=args.gen_graph_method)
-  elif args.task_is_adjacent:
-    return GraphAdjacentDataset(
-        args.gen_graph_colors,
-        epoch_size,
-        n,
-        pmin=pmin,
-        pmax=pmax,
-        directed=args.gen_directed,
-        gen_method=args.gen_graph_method,
-        is_train=is_train,
-        is_mnist_colors=args.task_is_mnist_input)
-  else:
-    return FamilyTreeDataset(args.task, epoch_size, n, p_marriage=1.0)
 
 
 class MyTrainer(TrainerBase):
@@ -446,13 +290,11 @@ class MyTrainer(TrainerBase):
     assert mode in ['train', 'test']
     if mode == 'train':
       batch_size = args.batch_size
-      number = args.train_number
     else:
       batch_size = args.test_batch_size
-      number = self.test_number
 
     # The actual number of instances in an epoch is epoch_size * batch_size.
-    dataset = make_dataset(number, epoch_size * batch_size, mode == 'train')
+    dataset = LogiCityDataset(args, mode)
     dataloader = DataLoader(
         dataset,
         shuffle=True,
@@ -518,7 +360,6 @@ def main(run_id):
     io.mkdir(args.checkpoints_dir)
 
   logger.info(format_args(args))
-
   model = Model()
   if args.use_gpu:
     model.cuda()

@@ -19,15 +19,16 @@ import numpy as np
 
 from torch.utils.data.dataset import Dataset
 from torchvision import datasets
-
+import torch
 import jacinle.random as random
-
+import os
+import pickle as pkl
 from .family import randomly_generate_family
 from ...envs.graph import get_random_graph_generator
 
 __all__ = [
     'GraphOutDegreeDataset', 'GraphConnectivityDataset', 'GraphAdjacentDataset',
-    'FamilyTreeDataset'
+    'FamilyTreeDataset', 'LogiCityDataset'
 ]
 
 
@@ -187,6 +188,82 @@ class GraphAdjacentDataset(GraphDatasetBase):
         target=adjacent,
     )
 
+class LogiCityDataset(Dataset):
+  """The dataset for logic tasks."""
+
+  def __init__(self, args, mode):
+    super().__init__()
+    pkl_path = os.path.join(args.data_dir, '{}_raw_1k.pkl'.format(args.task))
+    print('Loading {} data from {}'.format(mode, pkl_path))
+    with open(pkl_path, 'rb') as f:
+      raw_data = pkl.load(f)
+    print('Loaded {} trajectories in all'.format(len(raw_data)))
+    if mode == 'train':
+      raw_data = raw_data[:900]
+    elif mode == 'test':
+      raw_data = raw_data[900:]
+    print('Using {} trajectories for {}'.format(len(raw_data), mode))
+    self.states = []
+    self.actions = []
+    num_pos = 0
+    num_neg = 0
+    self.tgt_action = {2: 0, 3: 1} if args.task == 'easy' else {0: 0, 1: 1, 2: 2, 3: 3}
+    for i in range(len(raw_data)):
+      traj = raw_data[i]
+      for j in range(len(traj)):
+        state = traj[j]['state']
+        action = traj[j]['action']
+        self.states.append(state)
+        self.actions.append(action)
+        if action in self.tgt_action:
+          num_pos += 1
+        else:
+          num_neg += 1
+    print('Loaded {} states and {} actions'.format(len(self.states), len(self.actions)))
+    print('Number of positive examples: {}'.format(num_pos))
+    print('Number of negative examples: {}'.format(num_neg))
+    self.pred_grounding_index = {'IsPedestrian': (0, 5), 
+                        'IsCar': (5, 10), 
+                        'IsAmbulance': (10, 15), 
+                        'IsBus': (15, 20), 
+                        'IsPolice': (20, 25), 
+                        'IsTiro': (25, 30), 
+                        'IsReckless': (30, 35), 
+                        'IsOld': (35, 40), 
+                        'IsYoung': (40, 45), 
+                        'IsAtInter': (45, 50), 
+                        'IsInInter': (50, 55), 
+                        'IsClose': (55, 80), 
+                        'HigherPri': (80, 105), 
+                        'CollidingClose': (105, 130), 
+                        'LeftOf': (130, 155), 
+                        'RightOf': (155, 180), 
+                        'NextTo': (180, 205)}
+    self.num_ents = args.train_number
+
+
+  def __getitem__(self, idx):
+    s = self.states[idx]
+    a = self.actions[idx]
+    # convert s to predicate groundings
+    unp_arr_ls = []
+    bip_arr_ls = []
+    for k, v in self.pred_grounding_index.items():
+      original = s[v[0]:v[1]]
+      if original.shape[0] == self.num_ents:
+          unp_arr_ls.append(torch.tensor(original).unsqueeze(1))
+      elif original.shape[0] == self.num_ents**2:
+          bip_arr_ls.append(torch.tensor(original).reshape(self.num_ents, self.num_ents).unsqueeze(2))
+    # convert a to target
+    unp_arr_ls = torch.cat(unp_arr_ls, dim=1)
+    bip_arr_ls = torch.cat(bip_arr_ls, dim=2)
+    target = torch.zeros((self.num_ents, len(self.tgt_action)))
+    if a in self.tgt_action:
+      target[0, self.tgt_action[a]] = 1
+    return dict(n=self.num_ents, states=unp_arr_ls, relations=bip_arr_ls, target=target)
+
+  def __len__(self):
+    return len(self.states)
 
 class FamilyTreeDataset(Dataset):
   """The dataset for family tree tasks."""

@@ -102,3 +102,4 @@ ENV/
 
 # sublime worksapce
 *.sublime-workspace
+data/

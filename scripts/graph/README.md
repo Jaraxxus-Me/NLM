@@ -7,6 +7,7 @@ A set of graph-related reasoning tasks ans sorting task.
 ### Family tree tasks
 ``` shell
 # Train: add --train-number 20 --test-number-begin 20 --test-number-step 20 --test-number-end 100
+$ jac-run scripts/graph/learn_logicity.py --task easy
 $ jac-run scripts/graph/learn_graph_tasks.py --task has-father
 $ jac-run scripts/graph/learn_graph_tasks.py --task has-sister
 $ jac-run scripts/graph/learn_graph_tasks.py --task grandparents --epochs 100 --early-stop 1e-7
