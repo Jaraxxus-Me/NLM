@@ -8,6 +8,7 @@ A set of graph-related reasoning tasks ans sorting task.
 ``` shell
 # Train: add --train-number 20 --test-number-begin 20 --test-number-step 20 --test-number-end 100
 $ jac-run scripts/graph/learn_logicity.py --task easy --dump-dir dump/logicity_easy
+$ jac-run scripts/graph/learn_logicity.py --task easy --test-only --load dump/logicity_easy/checkpoints/checkpoint_4.pth
 $ jac-run scripts/graph/learn_logicity.py --task med --dump-dir dump/logicity_med
 $ jac-run scripts/graph/learn_graph_tasks.py --task has-father
 $ jac-run scripts/graph/learn_graph_tasks.py --task has-sister
