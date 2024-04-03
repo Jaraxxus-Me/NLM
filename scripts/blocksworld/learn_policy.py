@@ -13,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# export PATH=third_party/Jacinle/bin:$PATH
 """The script for blocks world experiments."""
 
 import collections
@@ -297,6 +299,7 @@ class Model(nn.Module):
     self.pred_loss = nn.BCELoss()
 
   def forward(self, feed_dict):
+    import ipdb; ipdb.set_trace()
     feed_dict = GView(feed_dict)
 
     states = feed_dict.states.float()
@@ -328,6 +331,7 @@ class Model(nn.Module):
     # total = 2 * the number of objects in each world
     total = states.size()[1]
     f = self.transform(states)
+    import ipdb; ipdb.set_trace()
     if args.model == 'memnet':
       f = self.feature(f)
     else:
@@ -392,6 +396,7 @@ def run_episode(env,
     array = env.unwrapped.current_state
     moves, new_pos, policies = [], [], []
 
+  import ipdb; ipdb.set_trace()
   while not is_over:
     state = env.current_state
     feed_dict = dict(states=np.array([state]))

@@ -194,21 +194,26 @@ class LogiCityDataset(Dataset):
 
   def __init__(self, args, mode):
     super().__init__()
-    pkl_path = os.path.join(args.data_dir, '{}_raw_100.pkl'.format(args.task))
+    pkl_path = os.path.join(args.data_dir, '{}_raw_1k.pkl'.format(args.task))
     print('Loading {} data from {}'.format(mode, pkl_path))
     with open(pkl_path, 'rb') as f:
       raw_data = pkl.load(f)
     print('Loaded {} trajectories in all'.format(len(raw_data)))
     if mode == 'train':
-      raw_data = raw_data[:50]
+      raw_data = raw_data[:100]
     elif mode == 'test':
-      raw_data = raw_data[-50:]
+      raw_data = raw_data[-100:]
     print('Using {} trajectories for {}'.format(len(raw_data), mode))
     self.states = []
     self.actions = []
     num_pos = 0
     num_neg = 0
-    self.tgt_action = {2: 0, 3: 1} if args.task == 'easy' else {0: 0, 1: 1, 2: 2, 3: 3}
+    if args.task in ['easy', 'medium', 'hard']:
+      # normal / stop
+      self.tgt_action = {1: 0, 3: 1}
+    elif args.task == 'expert':
+      # slow/ normal / fast / stop
+      self.tgt_action = {0: 0, 1: 1, 2: 2, 3: 3}
     for i in range(len(raw_data)):
       traj = raw_data[i]
       for j in range(len(traj)):
@@ -223,23 +228,47 @@ class LogiCityDataset(Dataset):
     print('Loaded {} states and {} actions'.format(len(self.states), len(self.actions)))
     print('Number of positive examples: {}'.format(num_pos))
     print('Number of negative examples: {}'.format(num_neg))
-    self.pred_grounding_index = {'IsPedestrian': (0, 5), 
-                        'IsCar': (5, 10), 
-                        'IsAmbulance': (10, 15), 
-                        'IsBus': (15, 20), 
-                        'IsPolice': (20, 25), 
-                        'IsTiro': (25, 30), 
-                        'IsReckless': (30, 35), 
-                        'IsOld': (35, 40), 
-                        'IsYoung': (40, 45), 
-                        'IsAtInter': (45, 50), 
-                        'IsInInter': (50, 55), 
-                        'IsClose': (55, 80), 
-                        'HigherPri': (80, 105), 
-                        'CollidingClose': (105, 130), 
-                        'LeftOf': (130, 155), 
-                        'RightOf': (155, 180), 
-                        'NextTo': (180, 205)}
+    if args.task in ['hard', 'expert']:
+      self.pred_grounding_index = {'IsPedestrian': (0, 5), 
+                          'IsCar': (5, 10), 
+                          'IsAmbulance': (10, 15), 
+                          'IsBus': (15, 20), 
+                          'IsPolice': (20, 25), 
+                          'IsTiro': (25, 30), 
+                          'IsReckless': (30, 35), 
+                          'IsOld': (35, 40), 
+                          'IsYoung': (40, 45), 
+                          'IsAtInter': (45, 50), 
+                          'IsInInter': (50, 55), 
+                          'IsClose': (55, 80), 
+                          'HigherPri': (80, 105), 
+                          'CollidingClose': (105, 130), 
+                          'LeftOf': (130, 155), 
+                          'RightOf': (155, 180), 
+                          'NextTo': (180, 205)}
+    elif args.task == 'easy':
+      self.pred_grounding_index = {'IsPedestrian': (0, 5), 
+                          'IsCar': (5, 10), 
+                          'IsAmbulance': (10, 15), 
+                          'IsOld': (15, 20), 
+                          'IsTiro': (20, 25),  
+                          'IsAtInter': (25, 30), 
+                          'IsInInter': (30, 35), 
+                          'HigherPri': (35, 60), 
+                          'CollidingClose': (60, 85)}
+    elif args.task == 'medium':
+      self.pred_grounding_index = {'IsPedestrian': (0, 5), 
+                          'IsCar': (5, 10), 
+                          'IsAmbulance': (10, 15), 
+                          'IsOld': (15, 20), 
+                          'IsTiro': (20, 25),  
+                          'IsBus': (25, 30),  
+                          'IsAtInter': (30, 35), 
+                          'IsInInter': (35, 40), 
+                          'HigherPri': (40, 65), 
+                          'CollidingClose': (65, 90),
+                          'NextTo': (90, 115),
+                          'RightOf': (115, 140)}
     self.num_ents = args.train_number
 
 
