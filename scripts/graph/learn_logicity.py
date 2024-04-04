@@ -47,7 +47,7 @@ from jactorch.optim.quickaccess import get_optimizer
 from jactorch.utils.meta import as_cuda
 
 TASKS = [
-    'easy', 'med', 'easy_med'
+    'easy', 'medium', 'hard', 'expert'
 ]
 
 parser = JacArgumentParser()
@@ -153,8 +153,8 @@ train_group.add_argument(
 TrainerBase.make_trainer_parser(
     parser, {
         'epochs': 5,
-        'epoch_size': 875,
-        'test_epoch_size': 250,
+        'epoch_size': 800,
+        'test_epoch_size': 200,
         'test_number_begin': 10,
         'test_number_step': 10,
         'test_number_end': 50,
@@ -225,12 +225,17 @@ class Model(nn.Module):
 
     # features
     if args.model == 'nlm':
-      input_dims = [0, 11, 6, 0]
+      if args.task == 'easy':
+        input_dims = [0, 7, 2, 0]
+      elif args.task == 'medium':
+        input_dims = [0, 8, 4, 0]
+      elif args.task in ['hard', 'expert']:
+        input_dims = [0, 11, 6, 0]
       self.features = LogicMachine.from_args(
           input_dims, args.nlm_attributes, args, prefix='nlm')
       output_dim = self.features.output_dims[self.feature_axis]
     # target
-    target_dim = 2 if args.task in['easy', 'easy_med'] else 4
+    target_dim = 2 if args.task in['easy', 'medium', 'hard'] else 4
     # Do not sigmoid as we will use CrossEntropyLoss
     self.pred = LogitsInference(output_dim, target_dim, [])
     # losses

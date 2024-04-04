@@ -194,7 +194,7 @@ class LogiCityDataset(Dataset):
 
   def __init__(self, args, mode):
     super().__init__()
-    pkl_path = os.path.join(args.data_dir, '{}_raw_1k.pkl'.format(args.task))
+    pkl_path = os.path.join(args.data_dir, '{}_raw_100.pkl'.format(args.task))
     print('Loading {} data from {}'.format(mode, pkl_path))
     with open(pkl_path, 'rb') as f:
       raw_data = pkl.load(f)
@@ -202,7 +202,7 @@ class LogiCityDataset(Dataset):
     if mode == 'train':
       raw_data = raw_data[:100]
     elif mode == 'test':
-      raw_data = raw_data[-100:]
+      raw_data = raw_data[-20:]
     print('Using {} trajectories for {}'.format(len(raw_data), mode))
     self.states = []
     self.actions = []
