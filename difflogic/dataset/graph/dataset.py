@@ -194,13 +194,13 @@ class LogiCityDataset(Dataset):
 
   def __init__(self, args, mode):
     super().__init__()
-    pkl_path = os.path.join(args.data_dir, '{}_raw_100.pkl'.format(args.task))
+    pkl_path = os.path.join(args.data_dir)
     print('Loading {} data from {}'.format(mode, pkl_path))
     with open(pkl_path, 'rb') as f:
       raw_data = pkl.load(f)
     print('Loaded {} trajectories in all'.format(len(raw_data)))
     if mode == 'train':
-      raw_data = raw_data[:100]
+      raw_data = raw_data[:args.num_traj]
     elif mode == 'test':
       raw_data = raw_data[-20:]
     print('Using {} trajectories for {}'.format(len(raw_data), mode))
@@ -208,7 +208,7 @@ class LogiCityDataset(Dataset):
     self.actions = []
     num_pos = 0
     num_neg = 0
-    if args.task in ['easy', 'medium', 'hard']:
+    if args.task in ['easy', 'medium', 'hard', 'transfer']:
       # normal / stop
       self.tgt_action = {1: 0, 3: 1}
     elif args.task == 'expert':
@@ -228,7 +228,7 @@ class LogiCityDataset(Dataset):
     print('Loaded {} states and {} actions'.format(len(self.states), len(self.actions)))
     print('Number of positive examples: {}'.format(num_pos))
     print('Number of negative examples: {}'.format(num_neg))
-    if args.task in ['hard', 'expert']:
+    if args.task in ['hard', 'expert', 'transfer']:
       self.pred_grounding_index = {'IsPedestrian': (0, 5), 
                           'IsCar': (5, 10), 
                           'IsAmbulance': (10, 15), 
